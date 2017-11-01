@@ -1,0 +1,54 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+industry_data <- read.csv("/Users/jasy/Documents/columbia/DSI-2017SPRING/machine learning/NL/industry_3Months_Return.csv",header = FALSE)
+names(industry_data) <- c("Number","Date","Industry","Ticker","Return")
+industry_data$Sector <- as.integer(industry_data$Industry / 1000)
+dts1 <- paste(industry_data$Date)
+dts2 <- as.POSIXct(dts1,format = '%Y%m%d')
+industry_data_new <- data.frame(industry_data,Date_new = as.Date(dts2))
+```
+
+```{r,fig.width=8,fig.height=4}
+library(ggplot2)
+library(scales) 
+require(plyr)
+industry_data_new$SIC <- mapvalues(industry_data_new$Sector, from=c("0","1","2","3","4","5","6","7","8","9"), to=c("Agriculture, Forestry and Fishing","Mining", "Construction","Maunfacturing","Transportation, Communications, Electric, Gas and Sanitary service","Wholesale Trade and Retail Trade","Finance, Insurance and Real Estate","Service1","Service2","Public Ad,omostration"))
+  
+ggplot(industry_data_new, aes(Date_new, Return, color = SIC)) +
+  geom_line() +
+  scale_x_date(labels = date_format("%Y-%m-%d"),date_breaks = "1 year")+
+  xlab("")+
+  ylab("Return")+
+  ggtitle("Return by different Sectors")
+``` 
+
+```{r}
+library(dplyr)
+par(mfrow = c(2,5))
+sub_industry <- industry_data_new[,c("Date_new","Return","Sector")]
+sub_industry <- na.omit(sub_industry)
+sub_industry$Date_new <- format(sub_industry$Date_new, format = "%Y-%m")
+sub_industry
+for (i in unique(sub_industry$Sector)){
+  d <- subset(sub_industry, sub_industry$Sector ==i)
+  d$Sector <- NULL
+  d_ts <- ts(d$Return, start = c(2005,1), frequency = 12 )
+  acf(d_ts, na.action = na.pass, ylab = paste("ACF when sector is",i,""), main=NA)
+}
+```
+ACF analysis is based on return value month by month. Blue line means whether the return value has a relationship with Lag(time period). Here we can see some of sectors have positive relationship with 4 months(quarters) Some are not. Obviously, if the 4th line is over blue line, which means it has a strong relationship with quarters, vice versa.
+```{r}
+for (i in unique(sub_industry$Sector)){
+  d <- subset(sub_industry, sub_industry$Sector ==i)
+  d$Sector <- NULL
+  d_ts <- ts(d$Return, start = c(2005,1), frequency = 12 )
+  AR_predict = arima(d_ts,seasonal = list(order = c(1, 0L, 0),period=4))
+  writeLines(paste("AR model prediction when sector is",i,"\n"))
+  print(predict(AR_predict,n.ahead = 12))
+}
+```
+Since most of sectors(in fact, is 9/10) have a strong relationship with quaters, so we do AR prediciton model based on period = 4 months. And here is the result for following 12 months.
